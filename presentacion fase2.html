@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentación: Proyecto "ServiceBook"</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #020202;
+            --primary-text-color: #e8e8e8;
+            --secondary-text-color: #c0c0c0;
+            --accent-color: #00BFFF; /* Azul */
+            --slide-bg-color: rgba(13, 17, 23, 0.7);
+            --code-bg-color: #010409;
+            --drop-zone-border: #444;
+            --drop-zone-hover-bg: rgba(0, 191, 255, 0.1);
+            --control-panel-bg: rgba(25, 25, 25, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-text-color);
+            overflow: hidden;
+        }
+
+        canvas#matrix-background {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; filter: blur(0.5px);
+        }
+
+        .carousel-container {
+            width: 100vw; height: 100vh; position: relative; z-index: 2;
+        }
+
+        .slide {
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+            opacity: 0; visibility: hidden; transition: opacity 0.5s ease-in-out;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 40px 80px;
+            background: var(--slide-bg-color); backdrop-filter: blur(4px);
+        }
+
+        .slide.active { opacity: 1; visibility: visible; }
+        
+        .slide-content {
+            max-width: 1400px; width: 100%; height: 85vh; overflow-y: auto;
+            display: flex;
+            gap: 30px;
+            padding-right: 15px; /* Espacio para el scrollbar */
+        }
+
+        /* --- Scrollbar custom --- */
+        .slide-content::-webkit-scrollbar { width: 8px; }
+        .slide-content::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 4px; }
+        .slide-content::-webkit-scrollbar-thumb { background: var(--accent-color); border-radius: 4px; }
+        .slide-content::-webkit-scrollbar-thumb:hover { background: #009ACD; }
+        
+        .text-content {
+            flex: 1;
+            text-align: left;
+        }
+
+        .image-container {
+            flex: 1;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide-content.split-layout .text-content { flex-basis: 50%; }
+        .slide-content.split-layout .image-container { display: flex; flex-basis: 50%; }
+
+        .slide h1 { font-size: 2.5rem; color: var(--accent-color); margin-bottom: 20px; font-weight: 700; text-shadow: 0 0 5px var(--accent-color);}
+        .slide h2 { font-size: 1.8rem; color: var(--primary-text-color); margin-bottom: 25px; font-weight: 600; text-align: center; }
+        .slide h3 { font-size: 1.4rem; color: var(--accent-color); margin-top: 25px; margin-bottom: 15px; font-weight: 600; text-align: left; border-bottom: 1px solid var(--accent-color); padding-bottom: 5px; }
+        .slide p, .slide li { font-size: 1.1rem; line-height: 1.7; color: var(--secondary-text-color); margin-bottom: 15px; text-align: left; }
+        .slide .centered-text { text-align: center; width: 100%; display: block; overflow-y: hidden; }
+        .slide .centered-text p { text-align: center; margin-left: auto; margin-right: auto; }
+        .slide ul { list-style: none; padding-left: 10px; text-align: left; }
+        .slide ul li::before { content: '✓  '; color: var(--accent-color); font-weight: bold; }
+
+        .nav-hint { position: absolute; bottom: 20px; width: 100%; text-align: center; font-size: 0.9rem; color: #777; z-index: 101;}
+        
+        .drop-zone {
+            width: 100%; height: 100%;
+            border: 1px solid var(--drop-zone-border);
+            border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+            position: relative; background-color: rgba(0,0,0,0.3);
+        }
+
+        .drop-zone.drag-over { background-color: var(--drop-zone-hover-bg); border-color: var(--accent-color); }
+        .drop-zone .drop-message { color: #888; font-size: 1.2rem; pointer-events: none; }
+        .drop-zone img {
+            max-width: 100%; max-height: 100%;
+            object-fit: contain; display: none; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 8px;
+        }
+
+        .nav-zone { position: fixed; top: 0; bottom: 0; width: 10%; z-index: 99; }
+        .nav-zone.left { left: 0; }
+        .nav-zone.right { right: 0; }
+
+        .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background-color: rgba(0, 0, 0, 0.4); color: white; border: none; cursor: pointer; z-index: 100; font-size: 2rem; height: 100%; width: 60px; display: flex; justify-content: center; align-items: center; transition: opacity 0.3s ease; opacity: 0; }
+        .nav-zone:hover .nav-btn { opacity: 1; }
+        #prev-btn { left: 0; border-radius: 0 10px 10px 0; }
+        #next-btn { right: 0; border-radius: 10px 0 0 10px; }
+
+        #control-trigger-zone { position: fixed; bottom: 0; left: 40%; width: 20%; height: 25px; z-index: 110; }
+        #control-panel {
+            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+            background-color: var(--control-panel-bg); border: 1px solid #333;
+            border-radius: 12px; padding: 8px 15px; display: flex; gap: 15px;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 109; backdrop-filter: blur(5px);
+        }
+        #control-trigger-zone:hover + #control-panel, #control-panel:hover { opacity: 1; visibility: visible; }
+        .control-btn {
+            background: none; border: none; color: var(--primary-text-color);
+            cursor: pointer; font-size: 1.8rem;
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
+        .control-btn:hover { color: var(--accent-color); transform: scale(1.1); }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="matrix-background"></canvas>
+    <div class="carousel-container">
+        
+        <div class="slide active">
+            <div class="slide-content centered-text">
+                <h2 style="font-size: 1.5rem; color: var(--secondary-text-color);">Fase 1: Definición y Planificación</h2>
+                <h1 style="font-size: 3.5rem;">Proyecto "ServiceBook"</h1>
+                <p style="font-size: 1.2rem; margin-top: 20px;">Presentación de la Propuesta Metodológica y Alcance</p>
+            </div>
+        </div>
+        
+        <div class="slide">
+            <div class="slide-content">
+                <div class="text-content">
+                    <h1>1. Objetivos del Proyecto</h1>
+                    <h3>Perfil del Proyecto</h3>
+                    <p>El sistema propuesto, <strong>"ServiceBook"</strong>, es una plataforma web transaccional concebida como un <em>marketplace</em> de servicios. Su objetivo principal es conectar a dos tipos de usuarios:</p>
+                    <ul>
+                        <li><strong>Clientes:</strong> Individuos o entidades que buscan y necesitan contratar servicios.</li>
+                        <li><strong>Profesionales:</strong> Individuos o empresas verificadas que ofrecen sus servicios.</li>
+                    </ul>
+                    <h3>Propósito</h3>
+                    <p>El objetivo es desarrollar una aplicación web que funcione como una plataforma de intermediación, facilitando el <strong>descubrimiento</strong>, la <strong>reserva</strong>, el <strong>pago</strong> y la <strong>calificación</strong> de estos servicios, creando un ecosistema de confianza y eficiencia.</p>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone">
+                        <span class="drop-message">Arrastra y suelta una imagen aquí</span>
+                        <img src="" alt="Imagen de la diapositiva">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content">
+                <div class="text-content">
+                    <h1>2. Estudio de Mercado y Monetización</h1>
+                    <h3>Mercado Objetivo</h3>
+                    <ul>
+                        <li><strong>Clientes:</strong> Personas de 18 a 55 años, de nivel socioeconómico medio y medio-alto, que buscan contratar servicios de manera rápida y confiable.</li>
+                        <li><strong>Profesionales:</strong> Trabajadores independientes, técnicos o especialistas que desean ofrecer sus servicios sin depender de intermediarios físicos (ej. belleza, salud, tecnología).</li>
+                    </ul>
+                    <h3>Oportunidad de Mercado</h3>
+                    <p>Existe una oportunidad para crear una plataforma <strong>multiservicios local</strong>, con un sistema de reputación confiable que integre reservas y gestión de pagos.</p>
+                    <h3>Estrategia de Monetización</h3>
+                    <p>La estrategia se basará en <strong>comisiones por transacción</strong>. No se utilizarán sistemas de suscripción o membresía.</p>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone">
+                        <span class="drop-message">Arrastra y suelta una imagen aquí</span>
+                        <img src="" alt="Imagen de la diapositiva">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content">
+                <div class="text-content">
+                    <h1>3. Alcance del Proyecto </h1>
+                    <p>El desarrollo se centrará en la implementación de 5 módulos principales:</p>
+                    <ul>
+                        <li><strong>Gestión de Usuarios y Perfiles:</strong> Registro, Autenticación y gestión de sesión. Edición de perfiles.</li>
+                        <li><strong>Gestión de Catálogo y Servicios:</strong> Permitir publicar, editar y eliminar servicios. Búsqueda y filtrado por categoría.</li>
+                        <li><strong>Gestión de Reserva (Núcleo):</strong> Permitir reservas con fecha, gestionar el estado de la reserva y permitir al profesional aceptar o rechazar.</li>
+                        <li><strong>Gestión de Pagos:</strong> Generar un registro de cada pago, calcular y registrar la comisión de la plataforma.</li>
+                        <li><strong>Gestión de Calificación y Reseñas:</strong> Permitir calificar el servicio solo después de que la compra esté completada.</li>
+                    </ul>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone">
+                        <span class="drop-message">Arrastra y suelta una imagen aquí</span>
+                        <img src="" alt="Imagen de la diapositiva">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content">
+                <div class="text-content">
+                    <h1>4. Límites del Proyecto </h1>
+                    <p>Para mantener el enfoque en los módulos centrales, las siguientes funcionalidades <strong>no</strong> se incluirán:</p>
+                    <ul>
+                        <li><strong>Pasarelas de Pago en Tiempo Real:</strong> No se integrarán servicios externos como PayPal. El sistema solo registrará los pagos, no los procesará.</li>
+                        <li><strong>Aplicaciones Móviles Nativas (iOS/Android):</strong> El enfoque es 100% en la aplicación web.</li>
+                        <li><strong>Sistemas de Suscripción o Membresía:</strong> El modelo es únicamente por comisión.</li>
+                        <li><strong>Soporte Multilingüe Automático.</strong></li>
+                    </ul>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone">
+                        <span class="drop-message">Arrastra y suelta una imagen aquí</span>
+                        <img src="" alt="Imagen de la diapositiva">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content">
+                <div class="text-content">
+                    <h1>5. Planificación </h1>
+                    <p>La planificación se ha detallado en un cronograma de <strong>22 días</strong>, alineado con nuestra metodología Kanban y los tres roles del equipo:</p>
+                    <ul>
+                        <li><strong>Backend (Rojo):</strong> Lógica de negocio, base de datos y funcionalidad interna.</li>
+                        <li><strong>Frontend (Verde):</strong> Desarrollo de la interfaz de usuario (UI).</li>
+                        <li><strong>QA (Naranja):</strong> Pruebas y validación de cada fase.</li>
+                    </ul>
+                    <h3>Fases del Cronograma</h3>
+                    <ul>
+                        <li><strong>Fase 1 (Días 1-8):</strong> Fundación (Usuarios y Catálogo).</li>
+                        <li><strong>Fase 2 (Días 8-15):</strong> Núcleo (Reservas).</li>
+                        <li><strong>Fase 3 (Días 14-20):</strong> Cierre (Pagos y Reseñas).</li>
+                        <li><strong>Fase 4 (Días 15-22):</strong> Documentación y Lanzamiento (en paralelo).</li>
+                    </ul>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone">
+                        <span class="drop-message">Arrastra y suelta una imagen aquí</span>
+                        <img src="" alt="Imagen de la diapositiva">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content centered-text">
+                <h1>6. Cronograma de Proyecto (22 Días)</h1>
+                <div class="image-container" style="display: flex; flex-basis: 100%; height: 70vh; margin-top: 20px;">
+                    <div class="drop-zone" style="background: #FFF; padding: 10px; border-color: transparent;"> <span class="drop-message" style="display: none;"></span>
+                        <img src="Captura de pantalla 2025-11-06 103305.png" alt="Cronograma de 22 dias del proyecto ServiceBook" style="display: block; position: relative; transform: none; top: 0; left: 0; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content centered-text">
+                <h2 style="font-size: 1.5rem; color: var(--secondary-text-color);">Fase 2: Diseño</h2>
+                <h1 style="font-size: 3.5rem;">Diseño de Experiencia (UX) e Interfaz (UI)</h1>
+                <p style="font-size: 1.2rem; margin-top: 20px;">Creación de "wireframes y mockups" para un diseño "intuitivo y atractivo". </p>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content split-layout">
+                <div class="text-content">
+                    <h1>2.1 Flujo de Usuario (UX)</h1>
+                    <h3>Figura 2.1: Cómo Funciona</h3>
+                    <p>Para "visualizar la estructura y el flujo de la aplicación" [cite: 26], se define el recorrido del cliente en cuatro pasos esenciales:</p>
+                    <ul>
+                        <li><strong>Busca el Servicio:</strong> Explora y filtra profesionales verificados.</li>
+                        <li><strong>Agenda tu Cita:</strong> Selecciona fecha y hora. [cite: 30]</li>
+                        <li><strong>Paga de Forma Segura:</strong> El pago se retiene en garantía (Escrow). </li>
+                        <li><strong>Califica tu Experiencia:</strong> Comparte tu reseña para construir confianza. </li>
+                    </ul>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone" style="border-color: transparent; background-color: transparent;">
+                        <span class="drop-message" style="display: none;"></span>
+                        <img src="Captura de pantalla 2025-11-10 085639.png" alt="Figura 2.1: Flujo de Usuario - Cómo Funciona" style="display: block; position: relative; transform: none; top: 0; left: 0; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content split-layout">
+                <div class="text-content">
+                    <h1>2.2 Mockups (UI) </h1>
+                    <h3>Figura 2.2: Página de Inicio </h3>
+                    <p>La página principal establece la propuesta de valor: <strong>"Encuentra Profesionales Verificados"</strong>. </p>
+                    <p>Incluye una barra de búsqueda  y las tres características clave de la plataforma:</p>
+                    <ul>
+                        <li>Profesionales Verificados </li>
+                        <li>Servicio Local </li>
+                        <li>Reserva Instantánea</li>
+                    </ul>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone" style="border-color: transparent; background-color: transparent;">
+                        <span class="drop-message" style="display: none;"></span>
+                        <img src="Captura de pantalla 2025-11-10 085341.png" alt="Figura 2.2: Mockup - Página de Inicio" style="display: block; position: relative; transform: none; top: 0; left: 0; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content split-layout">
+                <div class="text-content">
+                    <h1>2.2 Mockups (UI)</h1>
+                    <h3>Figura 2.3: Resultados (Servicios)</h3>
+                    <p>Para una experiencia "intuitiva" , la <strong>Vista de Servicios</strong> muestra los servicios específicos (ej. "Tutoría de Matemáticas") en un formato de tarjeta (card) que incluye al profesional, la calificación y el precio.</p>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone" style="border-color: transparent; background-color: transparent;">
+                        <span class="drop-message" style="display: none;"></span>
+                        <img src="Captura de pantalla 2025-11-10 085409.png" alt="Figura 2.3: Mockup - Página de Resultados de Servicios" style="display: block; position: relative; transform: none; top: 0; left: 0; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content split-layout">
+                <div class="text-content">
+                    <h1>2.2 Mockups (UI)</h1>
+                    <h3>Figura 2.4: Resultados (Profesionales)</h3>
+                    <p>La <strong>Vista de Profesionales</strong> se centra en los perfiles de los proveedores, mostrando su especialidad, calificación, número de trabajos y precio por hora. [cite: 82]</p>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone" style="border-color: transparent; background-color: transparent;">
+                        <span class="drop-message" style="display: none;"></span>
+                        <img src="Captura de pantalla 2025-11-10 085425.png" alt="Figura 2.4: Mockup - Página de Resultados de Profesionales" style="display: block; position: relative; transform: none; top: 0; left: 0; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+            <div class="slide-content split-layout">
+                <div class="text-content">
+                    <h1>2.2 Mockups (UI)</h1>
+                    <h3>Figura 2.5: Autenticación </h3>
+                    <p>El proceso de registro e inicio de sesión se ha simplificado mediante un <strong>modal (ventana emergente)</strong>. [cite: 186, 187]</p>
+                    <p>Se prioriza el inicio de sesión social (OAuth) con Google para reducir la fricción y facilitar un acceso rápido a la plataforma. [cite: 187]</p>
+                </div>
+                <div class="image-container">
+                    <div class="drop-zone" style="border-color: transparent; background-color: transparent;">
+                        <span class="drop-message" style="display: none;"></span>
+                        <img src="Captura de pantalla 2025-11-10 085652.png" alt="Figura 2.5: Mockup - Modal de Registro/Inicio de Sesión" style="display: block; position: relative; transform: none; top: 0; left: 0; object-fit: contain;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide">
+             <div class="slide-content centered-text">
+                <h1 style="font-size: 3rem;">Gracias por su atención</h1>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="nav-zone left"><button id="prev-btn" class="nav-btn">&#10094;</button></div>
+    <div class="nav-zone right"><button id="next-btn" class="nav-btn">&#10095;</button></div>
+    <div class="nav-hint"><p>Use las flechas del teclado (← →) o los botones laterales para navegar</p></div>
+
+    <div id="control-trigger-zone"></div>
+    <div id="control-panel">
+        <button id="add-image-btn" class="control-btn" title="Añadir Imagen / Dividir Pantalla">
+            🖼️
+        </button>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const slides = document.querySelectorAll('.slide');
+            const nextBtn = document.getElementById('next-btn');
+            const prevBtn = document.getElementById('prev-btn');
+            const addImageBtn = document.getElementById('add-image-btn');
+            let currentSlide = 0;
+
+            function showSlide(n) {
+                if (slides.length > 0) {
+                    slides[currentSlide].classList.remove('active');
+                    currentSlide = (n + slides.length) % slides.length;
+                    slides[currentSlide].classList.add('active');
+                }
+            }
+
+            nextBtn.addEventListener('click', () => showSlide(currentSlide + 1));
+            prevBtn.addEventListener('click', () => showSlide(currentSlide - 1));
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight') showSlide(currentSlide + 1);
+                else if (e.key === 'ArrowLeft') showSlide(currentSlide - 1);
+            });
+            
+            showSlide(0);
+
+            // Boton para modo split-screen
+            addImageBtn.addEventListener('click', () => {
+                const activeSlide = slides[currentSlide];
+                if (activeSlide) {
+                    const slideContent = activeSlide.querySelector('.slide-content');
+                    if (slideContent) slideContent.classList.toggle('split-layout');
+                }
+            });
+
+            // Logica de Arrastrar y Soltar Imagen
+            const dropZones = document.querySelectorAll('.drop-zone');
+            dropZones.forEach(zone => {
+                const dropMessage = zone.querySelector('.drop-message');
+                const imgElement = zone.querySelector('img');
+                
+                // --- MODIFICACION: Ocultar borde si la imagen ya esta cargada (como el cronograma o las capturas) ---
+                if (imgElement && imgElement.getAttribute('src') && imgElement.getAttribute('src') !== "") {
+                    if(dropMessage) dropMessage.style.display = 'none';
+                    // Mantenemos el fondo blanco para cronograma, transparente para el resto
+                    if (imgElement.src.includes('cronograma.png')) {
+                        zone.style.backgroundColor = '#FFF';
+                    } else {
+                        zone.style.backgroundColor = 'transparent';
+                    }
+                    zone.style.borderColor = 'transparent'; // Oculta el borde
+                }
+                // --- FIN DE MODIFICACION ---
+
+                zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+                zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+                zone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    zone.classList.remove('drag-over');
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            imgElement.src = e.target.result;
+                            imgElement.style.display = 'block';
+                            imgElement.style.position = 'absolute';
+                            imgElement.style.transform = 'translate(-50%, -50%)';
+                            imgElement.style.top = '50%';
+                            imgElement.style.left = '50%';
+                            
+                            if(dropMessage) dropMessage.style.display = 'none';
+                            
+                            // --- MODIFICACION: Ocultar borde al soltar imagen ---
+                            zone.style.borderColor = 'transparent';
+                            zone.style.backgroundColor = 'transparent';
+                            // --- FIN DE MODIFICACION ---
+                        }
+                        reader.readAsDataURL(file);
+                    } else { alert("Por favor, suelta un archivo de imagen válido."); }
+                });
+            });
+
+            // --- Logica del Fondo Matrix ---
+            const canvas = document.getElementById('matrix-background'), ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            const alphabet = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン01';
+            const fontSize = 16;
+            const columns = Math.floor(canvas.width / fontSize);
+            const rainDrops = Array.from({ length: columns }).map(() => 1);
+            
+            const draw = () => {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#00BFFF'; // Color de Matrix (Azul)
+                ctx.font = fontSize + 'px monospace';
+                rainDrops.forEach((y, i) => {
+                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    ctx.fillText(text, i * fontSize, y * fontSize);
+                    if (y * fontSize > canvas.height && Math.random() > 0.975) rainDrops[i] = 0;
+                    rainDrops[i]++;
+                });
+            };
+            setInterval(draw, 33);
+        });
+    </script>
+</body>
+</html>
